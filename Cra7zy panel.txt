@@ -1,0 +1,287 @@
+-- cra7zy panel - Painel Admin  (LocalScript)
+-- Sem whitelist, Jail estilizada, Tags, Owner/Staff, Chat Commands, Jumpscare
+
+--// SERVIÇOS
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local Debris = game:GetService("Debris")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+--// PANEL USERS & STAFF
+local panelUsers = {}
+panelUsers[player.Name] = true
+local staffUsers = {}
+local ranks = {Owner = {"Kingstongh90"}} 
+local tagged = {}
+local jailedPlayers = {}
+
+--// WINDUI
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+_G.WindUI = WindUI
+
+--// JANELA PRINCIPAL
+local Window = WindUI:CreateWindow({ 
+    Title="cra7zy  Panel- Painel Admin ",
+    Icon="terminal",
+    Author="cra7yz",
+    Theme="Dark",
+    Size=UDim2.fromOffset(580,460)
+})
+WindUI:Notify({
+    Title="🎩 cra7zy / panelUsers",
+    Content="Painel carregado com sucesso por "..player.DisplayName.."!",
+    Duration=3
+})
+
+--// ABAS
+local Tab = Window:Tab({Title="⚔️ Admin", Icon="skull"})
+local OutrosTab = Window:Tab({Title="🎭 Outros", Icon="zap"})
+local StaffTab, OwnerTab
+if player.Name=="Kingstongh90" or player.Name=="cra7zy" then StaffTab = Window:Tab({Title="👑 Staff", Icon="crown"}) end
+if player.Name=="Kingstongh90" then OwnerTab = Window:Tab({Title="💎 Owner", Icon="shield"}) end
+
+--// DROPDOWN
+local selectedPlayer
+local function atualizarDropdown()
+    local nomes = {}
+    for _,plr in ipairs(Players:GetPlayers()) do table.insert(nomes,plr.Name) end
+    Tab:Dropdown({
+        Title="🎯 Selecionar Jogador",
+        Values=nomes,
+        Multi=false,
+        Callback=function(v) selectedPlayer = Players:FindFirstChild(v) end
+    })
+end
+task.delay(1, atualizarDropdown)
+Players.PlayerAdded:Connect(atualizarDropdown)
+Players.PlayerRemoving:Connect(atualizarDropdown)
+
+--// FUNÇÃO SAFE
+local function safe(fn) local ok,err=pcall(fn) if not ok then warn("[DevClient]",err) end end
+
+--// FUNÇÃO DE JAIL
+local function criarJail(target)
+    if not target.Character then return end
+    local root = target.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    if jailedPlayers[target.Name] then jailedPlayers[target.Name]:Destroy() end
+
+    local cage = Instance.new("Model")
+    cage.Name = target.Name.."_Jail"
+    cage.Parent = Workspace
+
+    local color = Color3.fromRGB(170,0,255)
+    local pos = root.Position
+    local size = 4
+    local height = 6
+    local thick = 0.5
+
+    local function make(cfSize, cfPos)
+        local p = Instance.new("Part")
+        p.Size = cfSize
+        p.CFrame = CFrame.new(cfPos)
+        p.Anchored = true
+        p.CanCollide = true
+        p.Color = color
+        p.Material = Enum.Material.Neon
+        p.Transparency = 0.28
+        p.Parent = cage
+    end
+
+    make(Vector3.new(size*2, thick, size*2), pos + Vector3.new(0,-0.5,0))
+    make(Vector3.new(size*2, thick, size*2), pos + Vector3.new(0,height,0))
+    make(Vector3.new(thick,height,size*2), pos + Vector3.new(size,height/2,0))
+    make(Vector3.new(thick,height,size*2), pos + Vector3.new(-size,height/2,0))
+    make(Vector3.new(size*2,height,thick), pos + Vector3.new(0,height/2,size))
+    make(Vector3.new(size*2,height,thick), pos + Vector3.new(0,height/2,-size))
+
+    jailedPlayers[target.Name] = cage
+    Debris:AddItem(cage,60)
+end
+
+local function desfazerJail(target)
+    if jailedPlayers[target.Name] then
+        safe(function() jailedPlayers[target.Name]:Destroy() end)
+        jailedPlayers[target.Name]=nil
+    end
+end
+
+--// FUNÇÃO DE TAGS
+local function criarTagGui(head)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "userTag"
+    billboard.Size = UDim2.new(0,150,0,50)
+    billboard.StudsOffset = Vector3.new(0,2.5,0)
+    billboard.Adornee = head
+    billboard.AlwaysOnTop = true
+    billboard.Parent = head
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1,0,1,0)
+    frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    frame.BorderColor3 = Color3.fromRGB(255,255,255)
+    frame.BorderSizePixel = 2
+    frame.AnchorPoint = Vector2.new(0.5,0.5)
+    frame.Position = UDim2.new(0.5,0,0.5,0)
+    frame.Parent = billboard
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0,20)
+    corner.Parent = frame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1,0,1,0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.fromRGB(255,255,255)
+    label.TextStrokeColor3 = Color3.fromRGB(0,0,0)
+    label.TextStrokeTransparency = 0.2
+    label.TextScaled = true
+    label.Font = Enum.Font.GothamBold
+    label.Parent = frame
+
+    return billboard
+end
+
+local function atualizarTags()
+    for _,plr in ipairs(Players:GetPlayers()) do
+        if not panelUsers[plr.Name] then continue end
+        if not plr.Character then continue end
+        local head = plr.Character:FindFirstChild("Head")
+        if not head then continue end
+        local billboard = head:FindFirstChild("DevTag") or criarTagGui(head)
+        local label = billboard:FindFirstChildOfClass("Frame") and billboard.Frame:FindFirstChildOfClass("TextLabel") or billboard:FindFirstChildOfClass("TextLabel")
+        if not label then continue end
+        local text = "PanelUser"
+        local color = Color3.fromRGB(255,255,0)
+        for _,n in ipairs(ranks.Owner) do if n==plr.Name then text="Owner"; color=Color3.fromRGB(170,0,255); break end end
+        if staffUsers[plr.Name] then text="Staff"; color=Color3.fromRGB(0,170,255) end
+        if tagged[plr.Name] then text=text.." ★" end
+        label.Text = text
+        label.TextColor3 = color
+    end
+end
+spawn(function() while true do safe(atualizarTags); task.wait(1.5) end end)
+
+--// FUNÇÃO DE EFEITOS
+local function applyEffect(target, cmd, args)
+    if not target or not target.Character then return end
+    local hum = target.Character:FindFirstChildOfClass("Humanoid")
+    local root = target.Character:FindFirstChild("HumanoidRootPart")
+    if cmd=="kill" and hum then hum.Health=0
+    elseif cmd=="kick" then safe(function() target:Kick("🚫 Expulso pelo Painel Admin Topzera!") end)
+    elseif cmd=="bring" and root and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then root.CFrame=player.Character.HumanoidRootPart.CFrame+Vector3.new(2,0,0)
+    elseif cmd=="tp" and root and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then player.Character.HumanoidRootPart.CFrame=root.CFrame+Vector3.new(2,0,0)
+    elseif cmd=="freeze" and hum then hum.WalkSpeed=0; hum.JumpPower=0
+    elseif cmd=="unfreeze" and hum then hum.WalkSpeed=16; hum.JumpPower=50
+    elseif cmd=="speed" and hum then hum.WalkSpeed=tonumber(args[1]) or 100
+    elseif cmd=="jail" then criarJail(target)
+    elseif cmd=="unjail" then desfazerJail(target)
+    elseif cmd=="jumpscare" and hum then
+        local gui = Instance.new("ScreenGui")
+        gui.IgnoreGuiInset = true
+        gui.ResetOnSpawn = false
+        gui.Parent = target:FindFirstChildOfClass("PlayerGui")
+
+        local img = Instance.new("ImageLabel")
+        img.Size = UDim2.fromScale(1,1)
+        img.Position = UDim2.new(0,0,0,0)
+        img.Image = "rbxassetid://9565121852"
+        img.BackgroundTransparency = 1
+        img.Parent = gui
+
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://85271883712040"
+        sound.Volume = 10
+        sound.Parent = gui
+        sound:Play()
+
+        task.delay(5, function()
+            hum.Health = 0
+            gui:Destroy()
+        end)
+    end
+end
+
+--// BOTÕES ADMIN
+local comandos = {
+    {"💀 Matar","kill"},{"🚫 Kickar","kick"},{"🌀 Bring","bring"},{"⚡ TP","tp"},
+    {"❄️ Congelar","freeze"},{"🔥 Descongelar","unfreeze"},{"💨 Velocidade","speed"},
+    {"🧱 Prender Jail","jail"},{"💥 Soltar Jail","unjail"},
+    {"🧾 Tag All","tagall"},{"🧾 Untag All","untagall"},{"😱 Jumpscare","jumpscare"}
+}
+
+for _,c in ipairs(comandos) do
+    Tab:Button({
+        Title=c[1],
+        Callback=function()
+            if c[2]=="tagall" then for n,_ in pairs(panelUsers) do tagged[n]=true end; atualizarTags()
+            elseif c[2]=="untagall" then tagged={}; atualizarTags()
+            else
+                if not selectedPlayer then WindUI:Notify({Title="Erro",Content="Selecione um jogador!",Duration=3}) return end
+                applyEffect(selectedPlayer,c[2],{})
+            end
+        end
+    })
+end
+
+--// STAFF
+if StaffTab then
+    local godEnabled=false
+    StaffTab:Button({Title="🛡 God Mode", Callback=function()
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            godEnabled=not godEnabled
+            hum.MaxHealth=godEnabled and math.huge or 100
+            hum.Health=godEnabled and math.huge or 100
+            WindUI:Notify({Title="Staff", Content="God Mode "..(godEnabled and "Ativado" or "Desativado"), Duration=3})
+        end
+    end})
+    StaffTab:Button({Title="⚔️ Kill All PanelUsers", Callback=function()
+        for n,_ in pairs(panelUsers) do
+            local plr=Players:FindFirstChild(n)
+            if plr then applyEffect(plr,"kill",{}) end
+        end
+    end})
+    StaffTab:Button({Title="🚫 Kick All PanelUsers", Callback=function()
+        for n,_ in pairs(panelUsers) do
+            local plr=Players:FindFirstChild(n)
+            if plr then safe(function() plr:Kick("🚫 Expulso pelo Staff!") end) end
+        end
+    end})
+    StaffTab:Button({Title="🪁 Fly GUI", Callback=function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/XNEOFF/FlyGuiV3/main/FlyGuiV3.txt"))()
+    end})
+end
+
+--// OWNER
+if OwnerTab then
+    OwnerTab:Button({Title="👑 Conceder Staff", Callback=function()
+        if not selectedPlayer then return end
+        staffUsers[selectedPlayer.Name]=true
+        WindUI:Notify({Title="Owner", Content=selectedPlayer.Name.." recebeu Staff!", Duration=3})
+        atualizarTags()
+    end})
+    OwnerTab:Button({Title="❌ Retirar Staff", Callback=function()
+        if not selectedPlayer then return end
+        staffUsers[selectedPlayer.Name]=nil
+        WindUI:Notify({Title="Owner", Content=selectedPlayer.Name.." perdeu Staff!", Duration=3})
+        atualizarTags()
+    end})
+    OwnerTab:Button({Title="🚨 FakeBan", Callback=function()
+        if not selectedPlayer then return end
+        safe(function() selectedPlayer:Kick("Você foi Banido pelo DevTeam! 😱") end)
+    end})
+end
+
+--// CHAT COMMANDS
+player.Chatted:Connect(function(msg)
+    if msg:sub(1,1)==";" then
+        local split=msg:sub(2):split(" ")
+        local cmd=split[1]:lower()
+        local args={}
+        for i=2,#split do table.insert(args,split[i]) end
+        if selectedPlayer then applyEffect(selectedPlayer,cmd,args) end
+        if cmd=="fly" then loadstring(game:HttpGet("https://raw.githubusercontent.com/XNEOFF/FlyGuiV3/main/FlyGuiV3.txt"))() end
+    end
+end)
